@@ -1,0 +1,14 @@
+{
+  "name": "agent-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code のセッションを可視化するローカルダッシュボード",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
