@@ -106,7 +106,7 @@ pub struct Live {
 pub struct Summary {
     pub id: String,
     project_dir: String,
-    title: Option<String>,
+    pub title: Option<String>,
     first_prompt: Option<String>,
     last_prompt: Option<String>,
     pub cwd: Option<String>,

@@ -1,5 +1,5 @@
 // Claude Code セッションダッシュボード（読み取り専用）
-mod iterm;
+mod terminal;
 pub mod sessions;
 
 use std::process::Command;
@@ -9,6 +9,7 @@ use serde::Serialize;
 use tauri::State;
 
 use sessions::{Sessions, Snapshot, Summary, Transcript};
+use terminal::Terminal;
 
 type Shared<'a> = State<'a, Arc<Sessions>>;
 
@@ -39,21 +40,21 @@ async fn get_session(id: String, state: Shared<'_>) -> Result<Detail, String> {
     blocking(move || {
         let (summary, file) = sessions.find(&id).ok_or(NOT_FOUND)?;
         let transcript = sessions::transcript(&file).map_err(|e| e.to_string())?;
-        Ok(Detail { command: iterm::resume_command(&summary), summary, transcript })
+        Ok(Detail { command: terminal::resume_command(&summary), summary, transcript })
     })
     .await?
 }
 
 #[tauri::command]
-async fn resume_session(id: String, state: Shared<'_>) -> Result<(), String> {
+async fn resume_session(id: String, terminal: Terminal, state: Shared<'_>) -> Result<(), String> {
     let sessions = state.inner().clone();
-    blocking(move || iterm::resume(&sessions.find(&id).ok_or(NOT_FOUND)?.0)).await?
+    blocking(move || terminal::resume(terminal, &sessions.find(&id).ok_or(NOT_FOUND)?.0)).await?
 }
 
 #[tauri::command]
-async fn focus_session(id: String, state: Shared<'_>) -> Result<(), String> {
+async fn focus_session(id: String, terminal: Terminal, state: Shared<'_>) -> Result<(), String> {
     let sessions = state.inner().clone();
-    blocking(move || iterm::focus(&sessions.find(&id).ok_or(NOT_FOUND)?.0)).await?
+    blocking(move || terminal::focus(terminal, &sessions.find(&id).ok_or(NOT_FOUND)?.0)).await?
 }
 
 // PR などの外部リンクは既定のブラウザで開く

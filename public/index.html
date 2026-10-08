@@ -169,6 +169,18 @@ dialog.drawer::backdrop { background: rgb(0 0 0 / .35); }
 .tool { font: 11.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); padding: 0 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool b { color: var(--ink); font-weight: 500; }
 
+dialog.settings {
+  width: min(360px, calc(100vw - 32px)); padding: 16px 20px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel); color: var(--ink);
+}
+dialog.settings::backdrop { background: rgb(0 0 0 / .35); }
+dialog.settings h2 { margin: 0 0 12px; font-size: 15px; }
+dialog.settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+dialog.settings select { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 8px; font-size: 12px; }
+dialog.settings p { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+dialog.settings form { margin-top: 16px; text-align: right; }
+
 #toast {
   position: fixed; left: 50%; bottom: 24px; translate: -50% 0;
   background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 8px; font-size: 12.5px;
@@ -186,6 +198,7 @@ dialog.drawer::backdrop { background: rgb(0 0 0 / .35); }
     <button data-v="board">ボード</button><button data-v="list">リスト</button>
   </span>
   <button class="ghost" id="reload">更新</button>
+  <button class="ghost" id="openSettings">設定</button>
 </header>
 
 <section class="live" id="live" hidden></section>
@@ -214,6 +227,17 @@ dialog.drawer::backdrop { background: rgb(0 0 0 / .35); }
   <div class="d-head" id="dHead"></div>
   <div class="d-body" id="dBody"></div>
 </dialog>
+<dialog class="settings" id="settings" aria-labelledby="settingsTitle">
+  <h2 id="settingsTitle">設定</h2>
+  <label>ターミナルアプリ
+    <select id="terminal">
+      <option value="iterm">iTerm2</option>
+      <option value="ghostty">Ghostty</option>
+    </select>
+  </label>
+  <p>セッションの再開・表示に使うアプリです。</p>
+  <form method="dialog"><button class="btn">閉じる</button></form>
+</dialog>
 <div id="toast" role="status"></div>
 
 <script>
@@ -224,9 +248,11 @@ const call = (cmd, args) => window.__TAURI__.core.invoke(cmd, args).catch((e) =>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const DEFAULTS = { view: 'board', group: 'project', project: '', period: '14', liveOnly: false, q: '' };
+const TERMINALS = { iterm: 'iTerm2', ghostty: 'Ghostty' };
+const DEFAULTS = { view: 'board', group: 'project', project: '', period: '14', liveOnly: false, q: '', terminal: 'iterm' };
 const state = { ...DEFAULTS };
 try { Object.assign(state, JSON.parse(localStorage.getItem('dash') || '{}')); } catch {}
+if (!TERMINALS[state.terminal]) state.terminal = DEFAULTS.terminal;
 const save = () => { try { localStorage.setItem('dash', JSON.stringify(state)); } catch {} };
 
 let data = { now: Date.now(), home: '', sessions: [] };
@@ -443,9 +469,10 @@ function headHtml(s, command) {
   if (s.costUSD != null) rows.push(['コスト', `$${s.costUSD.toFixed(2)}` + (s.linesAdded != null ? ` · +${s.linesAdded} / -${s.linesRemoved} 行` : '')]);
   if (s.prUrl && /^https:\/\//.test(s.prUrl)) rows.push(['PR', `<a href="${esc(s.prUrl)}" data-act="open">${esc(s.prUrl)}</a>`]);
   rows.push(['ID', esc(s.id)]);
+  const app = TERMINALS[state.terminal];
   const primary = s.live
-    ? `<button class="btn primary" data-act="focus">iTerm2 で表示</button>`
-    : `<button class="btn primary" data-act="resume"${command ? '' : ' disabled'}>iTerm2 で再開</button>`;
+    ? `<button class="btn primary" data-act="focus">${app} で表示</button>`
+    : `<button class="btn primary" data-act="resume"${command ? '' : ' disabled'}>${app} で再開</button>`;
   return `<div class="row">
       <span class="badge claude">Claude</span>${statusBadge(s)}
       <h2>${esc(titleOf(s))}</h2>
@@ -503,11 +530,13 @@ $('dHead').addEventListener('click', async (e) => {
   const act = target?.dataset.act;
   if (!act) return;
   if (act === 'open') e.preventDefault(); // 外部リンクはアプリ内で開かず既定のブラウザへ
+  const { terminal } = state;
+  const app = TERMINALS[terminal];
   try {
     if (act === 'close') $('drawer').close();
     else if (act === 'open') await call('open_url', { url: target.href });
-    else if (act === 'resume') { await call('resume_session', { id: openId }); toast('iTerm2 でセッションを再開しました'); }
-    else if (act === 'focus') { await call('focus_session', { id: openId }); toast('iTerm2 のタブを表示しました'); }
+    else if (act === 'resume') { await call('resume_session', { id: openId, terminal }); toast(`${app} でセッションを再開しました`); }
+    else if (act === 'focus') { await call('focus_session', { id: openId, terminal }); toast(`${app} のタブを表示しました`); }
     else if (act === 'copy') { await navigator.clipboard.writeText(detail.command); toast('再開コマンドをコピーしました'); }
     else if (act === 'id') { await navigator.clipboard.writeText(openId); toast('セッション ID をコピーしました'); }
   } catch (err) {
@@ -541,6 +570,11 @@ $('period').addEventListener('change', (e) => { state.period = e.target.value; s
 $('liveOnly').addEventListener('change', (e) => { state.liveOnly = e.target.checked; save(); render(); });
 $('q').addEventListener('input', (e) => { state.q = e.target.value; save(); render(); });
 $('reload').addEventListener('click', () => refresh(true));
+$('openSettings').addEventListener('click', () => { $('terminal').value = state.terminal; $('settings').showModal(); });
+$('terminal').addEventListener('change', (e) => { state.terminal = e.target.value; save(); });
+$('settings').addEventListener('click', (e) => {
+  if (e.target === $('settings')) $('settings').close(); // 背景クリックで閉じる
+});
 
 let lastRender = 0;
 async function refresh(force) {

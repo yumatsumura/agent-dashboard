@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSAppleEventsUsageDescription</key>
-  <string>iTerm2 でセッションを再開・表示するために使います。</string>
+  <string>ターミナルアプリ（iTerm2・Ghostty）でセッションを再開・表示するために使います。</string>
 </dict>
 </plist>
