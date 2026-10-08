@@ -5,10 +5,14 @@
   "description": "Claude Code のセッションを可視化するローカルダッシュボード",
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node --watch server.mjs"
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1"
   }
 }

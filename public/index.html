@@ -217,7 +217,10 @@ dialog.drawer::backdrop { background: rgb(0 0 0 / .35); }
 <div id="toast" role="status"></div>
 
 <script>
-const TOKEN = '__TOKEN__';
+// Rust 側（src-tauri）のコマンドを呼ぶ。失敗時はメッセージ文字列が投げられる
+const call = (cmd, args) => window.__TAURI__.core.invoke(cmd, args).catch((e) => {
+  throw new Error(typeof e === 'string' ? e : e?.message || 'エラーが発生しました');
+});
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -428,12 +431,6 @@ function toast(msg) {
   toast.t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
-async function post(path, id) {
-  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN }, body: JSON.stringify({ id }) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'エラーが発生しました');
-}
-
 function headHtml(s, command) {
   const rows = [
     ['場所', esc(tilde(s.cwd))],
@@ -444,7 +441,7 @@ function headHtml(s, command) {
     ['モデル', esc([s.model, s.contextTokens ? `コンテキスト ${fmtTokens(s.contextTokens)}` : '', s.version ? `v${s.version}` : ''].filter(Boolean).join(' · ') || '—')],
   ];
   if (s.costUSD != null) rows.push(['コスト', `$${s.costUSD.toFixed(2)}` + (s.linesAdded != null ? ` · +${s.linesAdded} / -${s.linesRemoved} 行` : '')]);
-  if (s.prUrl && /^https:\/\//.test(s.prUrl)) rows.push(['PR', `<a href="${esc(s.prUrl)}" target="_blank" rel="noopener">${esc(s.prUrl)}</a>`]);
+  if (s.prUrl && /^https:\/\//.test(s.prUrl)) rows.push(['PR', `<a href="${esc(s.prUrl)}" data-act="open">${esc(s.prUrl)}</a>`]);
   rows.push(['ID', esc(s.id)]);
   const primary = s.live
     ? `<button class="btn primary" data-act="focus">iTerm2 で表示</button>`
@@ -457,7 +454,7 @@ function headHtml(s, command) {
     <dl class="d-meta">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     <div class="actions">${primary}
       <button class="btn" data-act="copy"${command ? '' : ' disabled'}>再開コマンドをコピー</button>
-      <button class="btn" data-act="link">リンクをコピー</button>
+      <button class="btn" data-act="id">ID をコピー</button>
     </div>
     ${command ? `<div class="cmd">${esc(command)}</div>` : ''}`;
 }
@@ -482,9 +479,7 @@ async function openSession(id) {
   if (!dlg.open) dlg.showModal();
   history.replaceState(null, '', '#' + id);
   try {
-    const r = await fetch('/api/sessions/' + id);
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error);
+    const j = await call('get_session', { id });
     if (openId !== id) return;
     detail = j;
     $('dHead').innerHTML = headHtml(j.summary, j.command);
@@ -504,14 +499,17 @@ $('drawer').addEventListener('click', (e) => {
   if (e.target === $('drawer')) $('drawer').close(); // 背景クリックで閉じる
 });
 $('dHead').addEventListener('click', async (e) => {
-  const act = e.target.closest('[data-act]')?.dataset.act;
+  const target = e.target.closest('[data-act]');
+  const act = target?.dataset.act;
   if (!act) return;
+  if (act === 'open') e.preventDefault(); // 外部リンクはアプリ内で開かず既定のブラウザへ
   try {
     if (act === 'close') $('drawer').close();
-    else if (act === 'resume') { await post('/api/resume', openId); toast('iTerm2 でセッションを再開しました'); }
-    else if (act === 'focus') { await post('/api/focus', openId); toast('iTerm2 のタブを表示しました'); }
+    else if (act === 'open') await call('open_url', { url: target.href });
+    else if (act === 'resume') { await call('resume_session', { id: openId }); toast('iTerm2 でセッションを再開しました'); }
+    else if (act === 'focus') { await call('focus_session', { id: openId }); toast('iTerm2 のタブを表示しました'); }
     else if (act === 'copy') { await navigator.clipboard.writeText(detail.command); toast('再開コマンドをコピーしました'); }
-    else if (act === 'link') { await navigator.clipboard.writeText(location.href); toast('このセッションへのリンクをコピーしました'); }
+    else if (act === 'id') { await navigator.clipboard.writeText(openId); toast('セッション ID をコピーしました'); }
   } catch (err) {
     toast(err.message);
   }
@@ -547,10 +545,7 @@ $('reload').addEventListener('click', () => refresh(true));
 let lastRender = 0;
 async function refresh(force) {
   try {
-    const r = await fetch('/api/sessions');
-    const body = await r.text();
-    if (!r.ok) throw new Error(body);
-    const next = JSON.parse(body);
+    const next = await call('get_sessions');
     const sig = JSON.stringify(next.sessions);
     // 変化がなければ再描画しない（相対時刻のために 1 分に 1 回は描く）
     if (!force && sig === lastBody && Date.now() - lastRender < 60000) return;
@@ -559,7 +554,7 @@ async function refresh(force) {
     lastRender = Date.now();
     render();
   } catch {
-    $('headMeta').textContent = 'サーバーに接続できません';
+    $('headMeta').textContent = 'セッションを読み込めませんでした';
   }
 }
 

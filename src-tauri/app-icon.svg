@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d97757"/>
+      <stop offset="1" stop-color="#b9552f"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS のアイコン枠（1024 中 824 の角丸四角） -->
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="url(#bg)"/>
+  <!-- カンバンの 3 列 -->
+  <g fill="#f5f3ee">
+    <rect x="232" y="270" width="160" height="150" rx="28"/>
+    <rect x="232" y="448" width="160" height="110" rx="28" opacity=".8"/>
+    <rect x="232" y="586" width="160" height="168" rx="28" opacity=".6"/>
+    <rect x="432" y="270" width="160" height="210" rx="28"/>
+    <rect x="432" y="508" width="160" height="130" rx="28" opacity=".8"/>
+    <rect x="632" y="270" width="160" height="120" rx="28"/>
+    <rect x="632" y="418" width="160" height="150" rx="28" opacity=".8"/>
+    <rect x="632" y="596" width="160" height="100" rx="28" opacity=".6"/>
+  </g>
+  <!-- 稼働中を示す点 -->
+  <circle cx="760" cy="302" r="22" fill="#3aa567"/>
+</svg>
